@@ -1,0 +1,7 @@
+future>=1.0.0
+imageio>=2.37.2
+ipykernel>=7.1.0
+matplotlib>=3.10.8
+numpy>=2.2.6
+pip>=25.3
+scipy>=1.15.3

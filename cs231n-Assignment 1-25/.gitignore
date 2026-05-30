@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+uv.lock
+
+# Virtual environments
+.venv
+
+
+# 数据集
+imagenet_val_25.npz
+cifar-10-batches-py
+coco_captioning
