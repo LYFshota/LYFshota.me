@@ -1,0 +1,29 @@
+# Python virtual environment
+.venv/
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Datasets and Models
+**/datasets/
+**/data/
+**/pretrained_model/
+*.h5
+*.pth
+*.pt
+*.tar.gz
+
+# Build and compiled files
+build/
+*.c
+*.so
+
+# IDE and OS
+.vscode/
+__MACOSX/
+.DS_Store

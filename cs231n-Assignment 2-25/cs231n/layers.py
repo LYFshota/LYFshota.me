@@ -111,7 +111,7 @@ def relu_backward(dout, cache):
     - cache: 输入 x，与 dout 形状相同
 
     返回：
-    - dx: 这属于求计算出针对其给那数据原本的输入的梯度有关的值返回来
+    - dx: 相对于输入 x 的梯度
     """
     dx, x = None, cache
     ###########################################################################
@@ -569,6 +569,41 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: 实现卷积的前向传播。                                              #
     # 提示：你可以使用 np.pad 函数进行填充操作。                              #
     ###########################################################################
+    
+    # 1. 获取输入尺寸和卷积参数
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    stride = conv_param['stride']
+    pad = conv_param['pad']
+
+    # 2. 计算输出数据的尺寸
+    H_out = int(1 + (H + 2 * pad - HH) / stride)
+    W_out = int(1 + (W + 2 * pad - WW) / stride)
+
+    # 3. 对输入数据 x 进行零填充 (padding)
+    # np.pad 的第二个参数是要填充的轴：((N的填充), (C的填充), (H的填充), (W的填充))
+    # 我们只对 H 和 W 维度进行填充，N 和 C 维度前后都填充 0。
+    x_pad = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+
+    # 4. 初始化输出矩阵
+    out = np.zeros((N, F, H_out, W_out))
+
+    # 5. 朴素的多重循环实现卷积操作
+    for n in range(N):             # 遍历样本
+        for f in range(F):         # 遍历滤波器
+            for i in range(H_out):     # 遍历输出的高度
+                for j in range(W_out): # 遍历输出的宽度
+                    # 确定当前卷积窗口在填充后输入数据中的边界
+                    h_start = i * stride
+                    h_end = h_start + HH
+                    w_start = j * stride
+                    w_end = w_start + WW
+                    
+                    # 提取当前卷积窗口的数据
+                    x_window = x_pad[n, :, h_start:h_end, w_start:w_end]
+                    
+                    # 进行逐元素乘法、求和并加上偏置
+                    out[n, f, i, j] = np.sum(x_window * w[f, :, :, :]) + b[f]
 
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
@@ -593,6 +628,48 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: 实现卷积过程的反向传播。                                          #
     ###########################################################################
+    
+    # 1. 从 cache 中提取前向传播保存的变量
+    x, w, b, conv_param = cache
+    stride = conv_param['stride']
+    pad = conv_param['pad']
+    
+    # 取出各项的尺寸
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    _, _, H_out, W_out = dout.shape
+    
+    # 2. 初始化梯度变量
+    dx_pad = np.zeros((N, C, H + 2 * pad, W + 2 * pad))
+    dw = np.zeros_like(w)
+    db = np.zeros_like(b)
+    
+    # 对输入 x 进行和前向传播相同的填充，用于切片以计算 dw
+    x_pad = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+    
+    # 3. 计算对 b 的梯度 db (在空间和批次维度上直接对 dout 求和)
+    for f in range(F):
+        db[f] = np.sum(dout[:, f, :, :])
+        
+    # 4. 朴素多重循环计算 dw 和 dx_pad
+    for n in range(N):
+        for f in range(F):
+            for i in range(H_out):
+                for j in range(W_out):
+                    # 确定感受野窗口的边界
+                    h_start = i * stride
+                    h_end = h_start + HH
+                    w_start = j * stride
+                    w_end = w_start + WW
+                    
+                    # 累加对权重 w 的梯度：上游梯度 dout 乘以对应窗口的输入数据
+                    dw[f] += x_pad[n, :, h_start:h_end, w_start:w_end] * dout[n, f, i, j]
+                    
+                    # 累加对输入 x_pad 的梯度：上游梯度 dout 乘以对应的权重参数
+                    dx_pad[n, :, h_start:h_end, w_start:w_end] += w[f] * dout[n, f, i, j]
+                    
+    # 5. 去除 dx_pad 周围的填充部分，还原为和 x 一致的尺寸，得到 dx
+    dx = dx_pad[:, :, pad:pad+H, pad:pad+W]
 
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
@@ -608,22 +685,50 @@ def max_pool_forward_naive(x, pool_param):
     - pool_param: 具有以下键的字典：
       - 'pool_height': 每个池化区域的高度
       - 'pool_width': 每个池化区域的宽度
-      - 'stride': 相邻池化区域之间的步子大小跳距
+      - 'stride': 相邻池化区域之间的距离（步幅）
 
-    这里其实没必要进行填充这类的，你可以就假定：
+    这里不需要考虑填充（padding），你可以假定：
       - (H - pool_height) % stride == 0
       - (W - pool_width) % stride == 0
 
     返回一个元组，包含：
-    - out: 输出数据，形状为 (N, C, H', W')，其中这 H' 和 W' 其实就是：
+    - out: 输出数据，形状为 (N, C, H', W')，其中 H' 和 W' 为：
       H' = 1 + (H - pool_height) / stride
       W' = 1 + (W - pool_width) / stride
     - cache: (x, pool_param)
     """
     out = None
     ###########################################################################
-    # TODO: 实现属于进行这最大池化的前向传播过程计算                          #
+    # TODO: 实现最大池化层的前向传播。                                        #
     ###########################################################################
+    
+    # 1. 提取输入尺寸和池化参数
+    N, C, H, W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    stride = pool_param['stride']
+    
+    # 2. 计算输出数据尺寸
+    H_out = int(1 + (H - pool_height) / stride)
+    W_out = int(1 + (W - pool_width) / stride)
+    
+    # 3. 初始化输出数组
+    out = np.zeros((N, C, H_out, W_out))
+    
+    # 4. 朴素的多重循环实现最大池化
+    for n in range(N):
+        for c in range(C):
+            for i in range(H_out):
+                for j in range(W_out):
+                    # 计算当前池化窗口的位置
+                    h_start = i * stride
+                    h_end = h_start + pool_height
+                    w_start = j * stride
+                    w_end = w_start + pool_width
+                    
+                    # 提取池化窗口并在局部区域内求取最大值
+                    x_pool = x[n, c, h_start:h_end, w_start:w_end]
+                    out[n, c, i, j] = np.max(x_pool)
 
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
@@ -633,19 +738,52 @@ def max_pool_forward_naive(x, pool_param):
 
 
 def max_pool_backward_naive(dout, cache):
-    """属于实现这种最大池化层的向后传播的朴素做法去实践一下。
+    """最大池化层反向传播的朴素实现。
 
     输入：
-    - dout: 在之前那些步骤算出来后留下往底下传递的对应这种关于求导数来的那个值
-    - cache: 回忆先前传播那般存在的关于这一段 (x, pool_param) 数值记录保存内容
+    - dout: 上游导数
+    - cache: 包含前向传播中存储的 (x, pool_param) 的元组
 
     返回：
-    - dx: 这属于求计算出针对其给那数据原本的输入的梯度有关的值返回来
+    - dx: 相对于输入 x 的梯度
     """
     dx = None
     ###########################################################################
-    # TODO: 接着就得弄有关这其在这进行最大池化时候关于背过去倒回进行运算传播了 #
+    # TODO: 实现最大池化层的反向传播。                                        #
     ###########################################################################
+    
+    # 1. 提取前向传播时的参数
+    x, pool_param = cache
+    N, C, H, W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    stride = pool_param['stride']
+    
+    _, _, H_out, W_out = dout.shape
+    
+    # 2. 初始化梯度 dx 为全零
+    dx = np.zeros_like(x)
+    
+    # 3. 朴素的多重循环计算池化层梯度
+    for n in range(N):
+        for c in range(C):
+            for i in range(H_out):
+                for j in range(W_out):
+                    # 确定感受野的边界
+                    h_start = i * stride
+                    h_end = h_start + pool_height
+                    w_start = j * stride
+                    w_end = w_start + pool_width
+                    
+                    # 取出原来的对应窗口数据
+                    x_pool = x[n, c, h_start:h_end, w_start:w_end]
+                    
+                    # 创建一个 mask（掩码），其中等于该窗口最大值的元素记为 True(1)，其余为 False(0)
+                    mask = (x_pool == np.max(x_pool))
+                    
+                    # 传播上游来的梯度：仅仅传递给予窗口中最大的那个元素
+                    #（注意由于窗口间可能发生重叠，这里需要使用 += 进行累积梯度）
+                    dx[n, c, h_start:h_end, w_start:w_end] += mask * dout[n, c, i, j]
 
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
@@ -654,32 +792,33 @@ def max_pool_backward_naive(dout, cache):
 
 
 def spatial_batchnorm_forward(x, gamma, beta, bn_param):
-    """计算一下在处理这空间情况下去用批量归一化时候做这个朝前方去推进数据的时候的算法传播计算。
+    """空间批量归一化（Spatial Batch Normalization）的前向传播。
 
-    输入项：
-    - x: 输入有关的这里数据的体型就是这样的类似结构 (N, C, H, W)
-    - gamma: 去控制有关数据在这里受到被拉去按尺度放大缩等调节这个影响情况的一个数据设置要求, 大小体态为 (C,)
-    - beta: 在涉及这一堆等在计算期间去改变相关这影响上的关于转移方面的涉及这设置，像这般 (C,)
-    - bn_param: 带有一套能像在这边找到的那几把用类似钥匙开出等东西的一类配制字典：
-      - mode: 有关于目前去跑这计算的时候，这是 '训练(train)' 或者 '去通过跑等测试一下情况(test)' 的区别；这一项你不能留着它在那里空着
-      - eps: 只是一个数值非常之微小不过有着稳定数学计算上那情况的能作为不带改变恒等用的这样常量
-      - momentum: 给这些那一边在跑时带的这些等类似那些算在关于这各种比如那个平时用的均了值的或者是其有着方差之类用处影响发挥一类的这个定常项。 这个当等于0时候就意思表示对于每一次那些旧了相关这般所去涉及的消息会被完全摒除了不要，另外要等于了这数字1时表达出反就是属于新的从来也别指望要来加去带入了。普遍来讲大多时拿0.9是属于用这最为靠谱不出其差的能有用的数字。
-      - running_mean: 那属于那带着相关形状大小有若 (D,) 在给出正在这计算下带着有关对应着这种类型下的均这一数值有关的东西
-      - running_var 这样有个形成带着像如此这般 (D,) 相关那些给出在那底下跑时有这相关这类表现形式上的带有关方差的这方面等项上所有的数码
+    输入：
+    - x: 输入数据，形状为 (N, C, H, W)
+    - gamma: 缩放参数，形状为 (C,)
+    - beta: 平移参数，形状为 (C,)
+    - bn_param: 具有以下键的字典：
+      - mode: 'train'（训练模式）或 'test'（测试模式）；必填
+      - eps: 用于数值稳定性的常数
+      - momentum: 用于运行均值/方差的常数。动量指示在运行均值/运行方差的计算中保留多少旧的信息。对于该值，通常 0.9 是一个较好的默认选择。
+      - running_mean: 形状为 (C,) 的数组，给出特征的运行均值
+      - running_var: 形状为 (C,) 的数组，给出特征的运行方差
 
-    将其包含的东西回推着变成一个这个类型的：
-    - out: 这里面就带的是那出具着去给了在这底下最后给出去这数据成果的体现, 这边带结构会是那样 (N, C, H, W)
-    - cache: 把后续关于向后进行相关导等逆步骤这推回的时候可能用到去这数值做相关寄存处
+    返回一个元组，包含：
+    - out: 输出数据，形状为 (N, C, H, W)
+    - cache: 用于反向传播的中间变量缓存
     """
-    out, cache = None, None
-
     ###########################################################################
-    # TODO: 对于有在这有关空间部分用的这种去进行它那进行批量等规范方面的向前操作执行传播！ 
+    # TODO: 实现空间批量归一化的前向传播。                                    #
     #                                                                         #
-    # 提供的一个比较有效关于去达成上面想的那方式等在这一点提醒：其实你在那上面的这段里面等通过借调上对于这种属于原始版本所去弄给弄出来了等有关计算它该执行的那内容就好啦！    
-    # 自己动手写下去的话这段内容应该其实也没会需要占得很长的地方；说出来哪怕如咱们也都没有费去超过它总共五行这般多的话呀！#
+    # 提示：你可以通过重塑输入数据（reshape），利用之前的批量归一化前向传播   #
+    # 的标准实现来完成此操作。你的实现应当非常简洁：不要超过大约5行代码。     #
     ###########################################################################
-
+    N, C, H, W = x.shape
+    x_reshaped = x.transpose(0, 2, 3, 1).reshape(-1, C)
+    out_flat, cache = batchnorm_forward(x_reshaped, gamma, beta, bn_param)
+    out = out_flat.reshape(N, H, W, C).transpose(0, 3, 1, 2)
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
     ###########################################################################
@@ -688,26 +827,28 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
 
 
 def spatial_batchnorm_backward(dout, cache):
-    """来推算是怎样给上面在那做的空间情况下有着这些涉及批量这种去做属于那相关的回去的这一推导计算。
+    """空间批量归一化的反向传播。
 
-    关于给这里的输点内容：
-    - dout: 在之前上面等计算的等从导这些步骤上获取了给发到了这边的那些有关它计算传下的这些属于这的导相关数据, 然后其形态如同这个一样 (N, C, H, W)
-    - cache: 相关在此前面做有关其那项上计算出保留给这里的这有的留档的寄存内容值在的
+    输入：
+    - dout: 上游导数，形状为 (N, C, H, W)
+    - cache: 来自 spatial_batchnorm_forward 的中间变量缓存。
 
-    这些是被整理后等会交出能以这类返回形式的一组里有的了内容：
-    - dx: 对于在关于这最最初带有着给在这涉及拿这内容来等数据输入的梯方面上的算出得到这些的数据体现, 其等相关的形式如下 (N, C, H, W)
-    - dgamma: 在那对于能够等给这算关于比例等缩拉等调整的项这些上拥有的梯的数据展现, 其实在这就为 (C,)
-    - dbeta: 而这也就是涉及带转移这种对它的改变上的等这类有关项这属于此上拥去得到的有关它在那等上面算的数值表现梯这类的, 形这样 (C,)
+    返回一个元组，包含：
+    - dx: 相对于输入数据的梯度，形状为 (N, C, H, W)
+    - dgamma: 相对于缩放参数 gamma 的梯度，形状为 (C,)
+    - dbeta: 相对于平移参数 beta 的梯度，形状为 (C,)
     """
-    dx, dgamma, dbeta = None, None, None
-
     ###########################################################################
-    # TODO: 接着就给落实好在此有关它上这部分在空间进行那些被规范去去弄的等等属于它在这些逆反回来传播之算。                 #
+    # TODO: 实现空间批量归一化的反向传播。                                    #
     #                                                                         #
-    # 有关这类建议也同前部分这说的那般：靠着在这你先头早去写出能起效去给那些普通方式给作这种用处函数上去运用，然后调来在这里做它就好！ #
-    # 在你弄的这个代码上实现这也绝应该属于会要挺能够简少点内容的量；起码像咱们拿来弄去写的这些可是都没有长于有等上了到像这五行的行数去啊。 #
+    # 提示：与前向传播类似，你可以通过重塑输入数据（reshape），利用之前的批量 #
+    # 归一化反向传播的标准实现来完成此操作。你的实现应当非常简洁：大约只需5行 #
+    # 代码左右。                                                              #
     ###########################################################################
-
+    N, C, H, W = dout.shape
+    dout_reshaped = dout.transpose(0, 2, 3, 1).reshape(-1, C)
+    dx_flat, dgamma, dbeta = batchnorm_backward(dout_reshaped, cache)
+    dx = dx_flat.reshape(N, H, W, C).transpose(0, 3, 1, 2)
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
     ###########################################################################
@@ -716,33 +857,42 @@ def spatial_batchnorm_backward(dout, cache):
 
 
 def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
-    """运算属于在这个等部分里头用到能叫做对在这个它的空间区域作相关的组合进行去关于对于这这等一类做归一给那些规范它等这样前导算之的这算出内容。
+    """空间组归一化（Spatial Group Normalization）的前向传播。
     
-    In contrast to layer normalization, group normalization splits each entry in the data into G
-    contiguous pieces, which it then normalizes independently. Per-feature shifting and scaling
-    are then applied to the data, in a manner identical to that of batch normalization and layer
-    normalization.
+    与层归一化不同，组归一化将数据中的每个条目分成 G 个连续的部分，
+    然后独立地对它们进行归一化。接着，以与批量归一化和层归一化
+    相同的方式，对数据应用逐特征的平移和缩放。
 
-    Inputs:
-    - x: Input data of shape (N, C, H, W)
-    - gamma: Scale parameter, of shape (1, C, 1, 1)
-    - beta: Shift parameter, of shape (1, C, 1, 1)
-    - G: Integer mumber of groups to split into, should be a divisor of C
-    - gn_param: Dictionary with the following keys:
-      - eps: Constant for numeric stability
+    输入：
+    - x: 输入数据，形状为 (N, C, H, W)
+    - gamma: 缩放参数，形状为 (1, C, 1, 1)
+    - beta: 平移参数，形状为 (1, C, 1, 1)
+    - G: 要分成组的整数数量，应该是 C 的约数
+    - gn_param: 具有以下键的字典：
+      - eps: 用于数值稳定性的常数
 
-    将其包含的东西回推着变成一个这个类型的：
-    - out: 这里面就带的是那出具着去给了在这底下最后给出去这数据成果的体现, 这边带结构会是那样 (N, C, H, W)
-    - cache: 把后续关于向后进行相关导等逆步骤这推回的时候可能用到去这数值做相关寄存处
+    返回一个元组，包含：
+    - out: 输出数据，形状为 (N, C, H, W)
+    - cache: 用于反向传播的中间变量缓存
     """
     out, cache = None, None
     eps = gn_param.get("eps", 1e-5)
     ###########################################################################
-    # TODO: 对于涉及它在这儿空间类里面做在以着被组合团成一组这这类性质上面这种规范等等操作上去作关于在这算前去等的实行之。      #
-    # 其实在关于这个做成的实行相关那的这里对于等如之前你也写关于那种用给那些对等层做这些的时候有着极其差极等不了这些它有关的等像的模样。 #
-    # 更这特等地你该需要于这个点之这里好等想一想能够如去如何能把它相关关于矩阵上转这去等一改变这之形状的话这会让大部分相关在属于你在这里用去构这些属于代码的时候的它也十分得与这你在前面那相关弄的这个去有关如用于做平时这那些跟去算在那些批量规范这等去实现上在包括训练这步骤和那些在此做的给它这种层的等都一样能在这等有着其等有相似像的一样之这好处！         #
+    # TODO: 实现空间组归一化的前向传播。                                      #
+    # 这一部分的实现与你之前完成的层归一化（layer normalization）非常相似。   #
+    # 特别是，你应该思考如何通过重塑（reshape）张量的形状，使得大部分代码与   #
+    # 批量归一化（batch normalization）和层归一化的前向传播代码保持一致！     #
     ###########################################################################
-
+    N, C, H, W = x.shape
+    x_reshaped = x.reshape(N * G, C // G * H * W)
+    mean = np.mean(x_reshaped, axis=1, keepdims=True)
+    var = np.var(x_reshaped, axis=1, keepdims=True)
+    
+    x_norm_reshaped = (x_reshaped - mean) / np.sqrt(var + eps)
+    x_norm = x_norm_reshaped.reshape(N, C, H, W)
+    
+    out = x_norm * gamma + beta
+    cache = (x, x_norm_reshaped, mean, var, eps, gamma, beta, G)
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
     ###########################################################################
@@ -750,24 +900,40 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
 
 
 def spatial_groupnorm_backward(dout, cache):
-    """关于给上面那涉及弄了这种空间等这给作以像在这如成组成部分等这种的一之有关它这去做对于算这这种回去等给推回去属于等像这后退传这种之算。
+    """空间组归一化的反向传播。
 
-    关于给这里的输点内容：
-    - dout: 在之前上面等计算的等从导这些步骤上获取了给发到了这边的那些有关它计算传下的这些属于这的导相关数据, 然后其形态如同这个一样 (N, C, H, W)
-    - cache: 相关在此前面做有关其那项上计算出保留给这里的这有的留档的寄存内容值在的
+    输入：
+    - dout: 上游导数，形状为 (N, C, H, W)
+    - cache: 来自 spatial_groupnorm_forward 的中间变量缓存。
 
-    Returns a tuple of:
-    - dx: Gradient with respect to inputs, of shape (N, C, H, W)
-    - dgamma: Gradient with respect to scale parameter, of shape (1, C, 1, 1)
-    - dbeta: Gradient with respect to shift parameter, of shape (1, C, 1, 1)
+    返回一个元组，包含：
+    - dx: 相对于输入数据的梯度，形状为 (N, C, H, W)
+    - dgamma: 相对于缩放参数 gamma 的梯度，形状为 (1, C, 1, 1)
+    - dbeta: 相对于平移参数 beta 的梯度，形状为 (1, C, 1, 1)
     """
     dx, dgamma, dbeta = None, None, None
 
     ###########################################################################
     # TODO: 实现空间组归一化的反向传播。                                      #
-    # This will be extremely similar to the layer norm implementation.        #
+    # 这与层归一化（layer norm）的实现将非常相似。                            #
     ###########################################################################
-
+    N, C, H, W = dout.shape
+    x, x_norm_reshaped, mean, var, eps, gamma, beta, G = cache
+    
+    dbeta = np.sum(dout, axis=(0, 2, 3), keepdims=True)
+    dgamma = np.sum(dout * x_norm_reshaped.reshape(N, C, H, W), axis=(0, 2, 3), keepdims=True)
+    
+    dx_norm = dout * gamma
+    dx_norm_reshaped = dx_norm.reshape(N * G, C // G * H * W)
+    
+    M = C // G * H * W
+    dx_reshaped = (1.0 / M) / np.sqrt(var + eps) * (
+        M * dx_norm_reshaped 
+        - np.sum(dx_norm_reshaped, axis=1, keepdims=True) 
+        - x_norm_reshaped * np.sum(dx_norm_reshaped * x_norm_reshaped, axis=1, keepdims=True)
+    )
+    
+    dx = dx_reshaped.reshape(N, C, H, W)
     ###########################################################################
     #                          END OF YOUR CODE (代码结束)                    #
     ###########################################################################

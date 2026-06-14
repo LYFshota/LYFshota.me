@@ -1,49 +1,47 @@
-"""This file defines layer types that are commonly used for recurrent neural networks.
+"""该文件定义了循环神经网络（RNN）中常用的层类型。
 """
 import torch
 
 
 def affine_forward(x, w, b):
-    """Computes the forward pass for an affine (fully connected) layer.
+    """计算仿射（全连接）层的前向传播。
 
-    The input x has shape (N, d_1, ..., d_k) and contains a minibatch of N
-    examples, where each example x[i] has shape (d_1, ..., d_k). We will
-    reshape each input into a vector of dimension D = d_1 * ... * d_k, and
-    then transform it to an output vector of dimension M.
+    输入 x 的形状为 (N, d_1, ..., d_k)，包含 N 个样本的微批次（minibatch），
+    其中每个样本 x[i] 的形状为 (d_1, ..., d_k)。我们将把每个输入重塑为
+    维度为 D = d_1 * ... * d_k 的向量，然后将其转换为维度为 M 的输出向量。
 
-    Inputs:
-    - x: A torch array containing input data, of shape (N, d_1, ..., d_k)
-    - w: A torch array of weights, of shape (D, M)
-    - b: A torch array of biases, of shape (M,)
+    输入:
+    - x: 包含输入数据的 torch 数组，形状为 (N, d_1, ..., d_k)
+    - w: 权重的 torch 数组，形状为 (D, M)
+    - b: 偏置的 torch 数组，形状为 (M,)
 
-    Returns a tuple of:
-    - out: output, of shape (N, M)
+    返回包含以下内容的元组:
+    - out: 输出，形状为 (N, M)
     """
     out = x.reshape(x.shape[0], -1) @ w + b
     return out
 
 
 def rnn_step_forward(x, prev_h, Wx, Wh, b):
-    """Run the forward pass for a single timestep of a vanilla RNN using a tanh activation function.
+    """使用 tanh 激活函数运行普通 RNN 单个时间步的前向传播。
 
-    The input data has dimension D, the hidden state has dimension H,
-    and the minibatch is of size N.
+    输入数据的维度为 D，隐藏状态的维度为 H，
+    微批次（minibatch）的大小为 N。
 
-    Inputs:
-    - x: Input data for this timestep, of shape (N, D)
-    - prev_h: Hidden state from previous timestep, of shape (N, H)
-    - Wx: Weight matrix for input-to-hidden connections, of shape (D, H)
-    - Wh: Weight matrix for hidden-to-hidden connections, of shape (H, H)
-    - b: Biases of shape (H,)
+    输入:
+    - x: 此时间步的输入数据，形状为 (N, D)
+    - prev_h: 上一个时间步的隐藏状态，形状为 (N, H)
+    - Wx: 输入到隐藏层连接的权重矩阵，形状为 (D, H)
+    - Wh: 隐藏层到隐藏层连接的权重矩阵，形状为 (H, H)
+    - b: 偏置，形状为 (H,)
 
-    Returns a tuple of:
-    - next_h: Next hidden state, of shape (N, H)
+    返回包含以下内容的元组:
+    - next_h: 下一个隐藏状态，形状为 (N, H)
     """
-    next_h = None
     ##############################################################################
-    # TODO: Implement a single forward step for the vanilla RNN.                 #
+    # TODO: 实现普通 RNN 的单个前向步。                                            #
     ##############################################################################
-
+    next_h = torch.tanh(x @ Wx + prev_h @ Wh + b)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -51,29 +49,37 @@ def rnn_step_forward(x, prev_h, Wx, Wh, b):
 
 
 def rnn_forward(x, h0, Wx, Wh, b):
-    """Run a vanilla RNN forward on an entire sequence of data.
+    """在整个数据序列上运行普通 RNN 的前向传播。
     
-    We assume an input sequence composed of T vectors, each of dimension D. The RNN uses a hidden
-    size of H, and we work over a minibatch containing N sequences. After running the RNN forward,
-    we return the hidden states for all timesteps.
+    我们假设输入序列由 T 个向量组成，每个向量的维度为 D。RNN 使用大小为 H 的
+    隐藏层，并且我们在包含 N 个序列的微批次（minibatch）上进行操作。运行 RNN
+    前向传播后，我们返回所有时间步的隐藏状态。
 
-    Inputs:
-    - x: Input data for the entire timeseries, of shape (N, T, D)
-    - h0: Initial hidden state, of shape (N, H)
-    - Wx: Weight matrix for input-to-hidden connections, of shape (D, H)
-    - Wh: Weight matrix for hidden-to-hidden connections, of shape (H, H)
-    - b: Biases of shape (H,)
+    输入:
+    - x: 整个时间序列的输入数据，形状为 (N, T, D)
+    - h0: 初始隐藏状态，形状为 (N, H)
+    - Wx: 输入到隐藏层连接的权重矩阵，形状为 (D, H)
+    - Wh: 隐藏层到隐藏层连接的权重矩阵，形状为 (H, H)
+    - b: 偏置，形状为 (H,)
 
-    Returns a tuple of:
-    - h: Hidden states for the entire timeseries, of shape (N, T, H)
+    返回包含以下内容的元组:
+    - h: 整个时间序列的隐藏状态，形状为 (N, T, H)
     """
-    h = None
     ##############################################################################
-    # TODO: Implement forward pass for a vanilla RNN running on a sequence of    #
-    # input data. You should use the rnn_step_forward function that you defined  #
-    # above. You can use a for loop to help compute the forward pass.            #
+    # TODO: 实现在输入数据序列上运行的普通 RNN 的前向传播。                        #
+    # 你应该使用你在上面定义的 rnn_step_forward 函数。                             #
+    # 你可以使用 for 循环来帮助计算前向传播。                                      #
     ##############################################################################
-
+    N, T, D = x.shape
+    H = h0.shape[1]
+    
+    h = torch.zeros((N, T, H), dtype=x.dtype, device=x.device)
+    prev_h = h0
+    
+    for t in range(T):
+        next_h = rnn_step_forward(x[:, t, :], prev_h, Wx, Wh, b)
+        h[:, t, :] = next_h
+        prev_h = next_h
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -81,27 +87,25 @@ def rnn_forward(x, h0, Wx, Wh, b):
 
 
 def word_embedding_forward(x, W):
-    """Forward pass for word embeddings.
+    """词嵌入（word embeddings）的前向传播。
     
-    We operate on minibatches of size N where
-    each sequence has length T. We assume a vocabulary of V words, assigning each
-    word to a vector of dimension D.
+    我们在大小为 N 的微批次（minibatch）上进行操作，其中每个序列的长度为 T。
+    我们假设词汇表（vocabulary）包含 V 个单词，并将每个单词分配给一个维度为 D 的向量。
 
-    Inputs:
-    - x: Integer array of shape (N, T) giving indices of words. Each element idx
-      of x muxt be in the range 0 <= idx < V.
-    - W: Weight matrix of shape (V, D) giving word vectors for all words.
+    输入:
+    - x: 形状为 (N, T) 的整数数组，给出单词的索引。x 的每个元素 idx
+      必须在 0 <= idx < V 的范围内。
+    - W: 形状为 (V, D) 的权重矩阵，给出所有单词的词向量。
 
-    Returns a tuple of:
-    - out: Array of shape (N, T, D) giving word vectors for all input words.
+    返回包含以下内容的元组:
+    - out: 形状为 (N, T, D) 的数组，给出所有输入单词的词向量。
     """
-    out = None
     ##############################################################################
-    # TODO: Implement the forward pass for word embeddings.                      #
+    # TODO: 实现词嵌入（word embeddings）的前向传播。                              #
     #                                                                            #
-    # HINT: This can be done in one line using Pytorch's array indexing.         #
+    # 提示：这可以使用 Pytorch 的数组索引在一行代码中完成。                        #
     ##############################################################################
-
+    out = W[x]
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -109,29 +113,29 @@ def word_embedding_forward(x, W):
 
 
 def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
-    """Forward pass for a single timestep of an LSTM.
+    """LSTM 单个时间步的前向传播。
 
-    The input data has dimension D, the hidden state has dimension H, and we use
-    a minibatch size of N.
+    输入数据的维度为 D，隐藏状态的维度为 H，我们使用的
+    微批次（minibatch）大小为 N。
 
-    Note that a sigmoid() function has already been provided for you in this file.
+    注意，本文件中已经为你提供了一个 sigmoid() 函数。
 
-    Inputs:
-    - x: Input data, of shape (N, D)
-    - prev_h: Previous hidden state, of shape (N, H)
-    - prev_c: previous cell state, of shape (N, H)
-    - Wx: Input-to-hidden weights, of shape (D, 4H)
-    - Wh: Hidden-to-hidden weights, of shape (H, 4H)
-    - b: Biases, of shape (4H,)
+    输入:
+    - x: 输入数据，形状为 (N, D)
+    - prev_h: 上一个隐藏状态，形状为 (N, H)
+    - prev_c: 上一个细胞状态（cell state），形状为 (N, H)
+    - Wx: 输入到隐藏层的权重，形状为 (D, 4H)
+    - Wh: 隐藏层到隐藏层的权重，形状为 (H, 4H)
+    - b: 偏置，形状为 (4H,)
 
-    Returns a tuple of:
-    - next_h: Next hidden state, of shape (N, H)
-    - next_c: Next cell state, of shape (N, H)
+    返回包含以下内容的元组:
+    - next_h: 下一个隐藏状态，形状为 (N, H)
+    - next_c: 下一个细胞状态，形状为 (N, H)
     """
     next_h, next_c = None, None
     #############################################################################
-    # TODO: Implement the forward pass for a single timestep of an LSTM.        #
-    # You may want to use the numerically stable sigmoid implementation above.  #
+    # TODO: 实现 LSTM 单个时间步的前向传播。                                      #
+    # 你可能希望使用上面提供的数值稳定的 sigmoid 实现。                           #
     #############################################################################
 
     ##############################################################################
@@ -142,30 +146,29 @@ def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
 
 
 def lstm_forward(x, h0, Wx, Wh, b):
-    """Forward pass for an LSTM over an entire sequence of data.
+    """在整个数据序列上进行 LSTM 的前向传播。
     
-    We assume an input sequence composed of T vectors, each of dimension D. The LSTM uses a hidden
-    size of H, and we work over a minibatch containing N sequences. After running the LSTM forward,
-    we return the hidden states for all timesteps.
+    我们假设输入序列由 T 个向量组成，每个向量的维度为 D。LSTM 使用大小为 H 的
+    隐藏层，并且我们在包含 N 个序列的微批次（minibatch）上进行操作。运行 LSTM 
+    前向传播后，我们返回所有时间步的隐藏状态。
 
-    Note that the initial cell state is passed as input, but the initial cell state is set to zero.
-    Also note that the cell state is not returned; it is an internal variable to the LSTM and is not
-    accessed from outside.
+    注意，初始细胞状态（cell state）虽然并未作为输入传递，但初始细胞状态被设置为全零。
+    另请注意，细胞状态不被返回；它是 LSTM 的内部变量，不会从外部访问。
 
-    Inputs:
-    - x: Input data of shape (N, T, D)
-    - h0: Initial hidden state of shape (N, H)
-    - Wx: Weights for input-to-hidden connections, of shape (D, 4H)
-    - Wh: Weights for hidden-to-hidden connections, of shape (H, 4H)
-    - b: Biases of shape (4H,)
+    输入:
+    - x: 输入数据，形状为 (N, T, D)
+    - h0: 初始隐藏状态，形状为 (N, H)
+    - Wx: 输入到隐藏层连接的权重，形状为 (D, 4H)
+    - Wh: 隐藏层到隐藏层连接的权重，形状为 (H, 4H)
+    - b: 偏置，形状为 (4H,)
 
-    Returns a tuple of:
-    - h: Hidden states for all timesteps of all sequences, of shape (N, T, H)
+    返回包含以下内容的元组:
+    - h: 所有序列的所有时间步的隐藏状态，形状为 (N, T, H)
     """
     h = None
     #############################################################################
-    # TODO: Implement the forward pass for an LSTM over an entire timeseries.   #
-    # You should use the lstm_step_forward function that you just defined.      #
+    # TODO: 实现在整个时间序列上的 LSTM 前向传播。                                #
+    # 你应该使用你刚刚定义的 lstm_step_forward 函数。                             #
     #############################################################################
 
     ##############################################################################
@@ -176,20 +179,19 @@ def lstm_forward(x, h0, Wx, Wh, b):
 
 
 def temporal_affine_forward(x, w, b):
-    """Forward pass for a temporal affine layer.
+    """时序仿射层（temporal affine layer）的前向传播。
     
-    The input is a set of D-dimensional
-    vectors arranged into a minibatch of N timeseries, each of length T. We use
-    an affine function to transform each of those vectors into a new vector of
-    dimension M.
+    输入是一组 D 维向量，排列成 N 个时间序列的微批次（minibatch），
+    每个时间序列的长度为 T。我们使用仿射函数将这些向量中的每一个
+    转换为维度为 M 的新向量。
 
-    Inputs:
-    - x: Input data of shape (N, T, D)
-    - w: Weights of shape (D, M)
-    - b: Biases of shape (M,)
+    输入:
+    - x: 输入数据，形状为 (N, T, D)
+    - w: 权重，形状为 (D, M)
+    - b: 偏置，形状为 (M,)
 
-    Returns a tuple of:
-    - out: Output data of shape (N, T, M)
+    返回包含以下内容的元组:
+    - out: 输出数据，形状为 (N, T, M)
     """
     N, T, D = x.shape
     M = b.shape[0]
@@ -198,27 +200,25 @@ def temporal_affine_forward(x, w, b):
 
 
 def temporal_softmax_loss(x, y, mask, verbose=False):
-    """A temporal version of softmax loss for use in RNNs.
+    """用于 RNN 的时序版本 softmax 损失函数。
     
-    We assume that we are making predictions over a vocabulary of size V for each timestep of a
-    timeseries of length T, over a minibatch of size N. The input x gives scores for all vocabulary
-    elements at all timesteps, and y gives the indices of the ground-truth element at each timestep.
-    We use a cross-entropy loss at each timestep, summing the loss over all timesteps and averaging
-    across the minibatch.
+    我们假设我们要针对大小为 N 的微批次（minibatch）中每个长度为 T 的时间序列，
+    在每个时间步上对大小为 V 的词汇表进行预测。输入 x 给出了所有时间步上所有词汇
+    元素的得分，y 给出了每个时间步上真实元素的索引。我们在每个时间步上使用交叉熵损失，
+    对所有时间步的损失进行求和，并在整个微批次上取平均。
 
-    As an additional complication, we may want to ignore the model output at some timesteps, since
-    sequences of different length may have been combined into a minibatch and padded with NULL
-    tokens. The optional mask argument tells us which elements should contribute to the loss.
+    作为额外的复杂情况，我们可能希望忽略某些时间步上的模型输出，因为
+    不同长度的序列可能被组合成一个微批次，并填充了 NULL 标记（tokens）。
+    可选的 mask 参数告诉我们哪些元素应该对损失有所贡献。
 
-    Inputs:
-    - x: Input scores, of shape (N, T, V)
-    - y: Ground-truth indices, of shape (N, T) where each element is in the range
-         0 <= y[i, t] < V
-    - mask: Boolean array of shape (N, T) where mask[i, t] tells whether or not
-      the scores at x[i, t] should contribute to the loss.
+    输入:
+    - x: 输入得分，形状为 (N, T, V)
+    - y: 真实标签的索引，形状为 (N, T)，其中每个元素在 0 <= y[i, t] < V 范围内
+    - mask: 形状为 (N, T) 的布尔数组，其中 mask[i, t] 指示 x[i, t] 处的得分
+      是否应该对损失产生贡献。
 
-    Returns a tuple of:
-    - loss: Scalar giving loss
+    返回包含以下内容的元组:
+    - loss: 给出损失值的标量
     """
 
     N, T, V = x.shape
@@ -227,7 +227,7 @@ def temporal_softmax_loss(x, y, mask, verbose=False):
     y_flat = y.reshape(N * T)
     mask_flat = mask.reshape(N * T)
 
-    loss = torch.nn.functional.cross_entropy(x_flat, y_flat, reduction='none')
+    loss = torch.nn.functional.cross_entropy(x_flat, y_flat.long(), reduction='none')
     loss = loss * mask_flat.float()
     loss = loss.sum() / N
 

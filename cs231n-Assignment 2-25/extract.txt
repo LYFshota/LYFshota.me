@@ -1,0 +1,155 @@
+--- Cell 0 (Markdown) ---
+**生成式AI的使用**: 就本次作业而言，生成式AI的使用同样受关于协作的政策约束。 与其他合作者一样，每个学生必须独立于交互的输出写下解答，并且提交中应包含说明协作性质的附注。 使用生成式AI工具实质性地完成作业的大部分内容不符合本次作业的精神，将构成对[荣誉守则]的违背(https://communitystandards.stanford.edu/policies-and-guidance/honor-code).
+--- Cell 1 (Code Comments) ---
+# 将您的 Google Drive 挂载到 Colab 虚拟机。
+# TODO：输入您在 Drive 中保存解压后的
+# 作业文件夹的名称，例如 'cs231n/assignments/assignment2/'
+# Now that we've mounted your Drive, this ensures that
+# the Python interpreter of the Colab VM can load
+# python files from within it.
+# This downloads the COCO dataset to your Drive
+# if it doesn't already exist.
+--- Cell 2 (Markdown) ---
+# Image Captioning with RNNs
+In this exercise, you will implement vanilla Recurrent Neural Networks and use them to train a model that can generate novel captions for images.
+--- Cell 3 (Code Comments) ---
+# 设置单元格。
+--- Cell 4 (Markdown) ---
+# COCO Dataset
+For this exercise, we will use the 2014 release of the [COCO dataset](https://cocodataset.org/), a standard testbed for image captioning. The dataset consists of 80,000 training images and 40,000 validation images, each annotated with 5 captions written by workers on Amazon Mechanical Turk.
+
+**Image features.** We have preprocessed the data and extracted features for you already. For all images, we have extracted features from the fc7 layer of the VGG-16 network pretrained on ImageNet, and these features are stored in the files `train2014_vgg16_fc7.h5` and `val2014_vgg16_fc7.h5`. To cut down on processing time and memory requirements, we have reduced the dimensionality of the features from 4096 to 512 using Principal Component Analysis (PCA), and these features are stored in the files `train2014_vgg16_fc7_pca.h5` and `val2014_vgg16_fc7_pca.h5`. The raw images take up nearly 20GB of space so we have not included them in the download. Since all images are taken from Flickr, we have stored the URLs of the training and validation images in the files `train2014_urls.txt` and `val2014_urls.txt`. This allows you to download images on-the-fly for visualization.
+
+**Captions.** Dealing with strings is inefficient, so we will work with an encoded version of the captions. Each word is assigned an integer ID, allowing us to represent a caption by a sequence of integers. The mapping between integer IDs and words is in the file `coco2014_vocab.json`, and you can use the function `decode_captions` from the file `cs231n/coco_utils.py` to convert NumPy arrays of integer IDs back into strings.
+
+**Tokens.** There are a couple special tokens that we add to the vocabulary, and we have taken care of all implementation details around special tokens for you. We prepend a special `<START>` token and append an `<END>` token to the beginning and end of each caption respectively. Rare words are replaced with a special `<UNK>` token (for "unknown"). In addition, since we want to train with minibatches containing captions of different lengths, we pad short captions with a special `<NULL>` token after the `<END>` token and don't compute loss or gradient for `<NULL>` tokens.
+
+You can load all of the COCO data (captions, features, URLs, and vocabulary) using the `load_coco_data` function from the file `cs231n/coco_utils.py`. Run the following cell to do so:
+--- Cell 5 (Code Comments) ---
+# Load COCO data from disk into a dictionary.
+# We'll work with dimensionality-reduced features for the remainder of this assignment,
+# but you can also experiment with the original features on your own by changing the flag below.
+# Print out all the keys and values from the data dictionary.
+--- Cell 6 (Markdown) ---
+## Inspect the Data
+It is always a good idea to look at examples from the dataset before working with it.
+
+You can use the `sample_coco_minibatch` function from the file `cs231n/coco_utils.py` to sample minibatches of data from the data structure returned from `load_coco_data`. Run the following to sample a small minibatch of training data and show the images and their captions. Running it multiple times and looking at the results helps you to get a sense of the dataset.
+--- Cell 7 (Code Comments) ---
+# Sample a minibatch and show the images and captions.
+# If you get an error, the URL just no longer exists, so don't worry!
+# You can re-sample as many times as you want.
+--- Cell 8 (Markdown) ---
+# Recurrent Neural Network
+As discussed in lecture, we will use Recurrent Neural Network (RNN) language models for image captioning. The file `cs231n/rnn_layers_pytorch.py` contains implementations of different layer types that are needed for recurrent neural networks, and the file `cs231n/classifiers/rnn_pytorch.py` uses these layers to implement an image captioning model.
+
+We will first implement different types of RNN layers in `cs231n/rnn_layers_pytorch.py`.
+
+_Optional Reading to get a deeper understanding of RNN : https://www.deeplearningbook.org/contents/rnn.html#pf7_
+--- Cell 9 (Markdown) ---
+# Vanilla RNN: Step Forward
+Open the file `cs231n/rnn_layers_pytorch.py`. This file implements the forward passes for different types of layers that are commonly used in recurrent neural networks. Note that since we use pytorch, the backward pass will be handled by pytorch's autograd.
+
+First implement the function `rnn_step_forward` which implements the forward pass for a single timestep of a vanilla recurrent neural network. After doing so run the following to check your implementation. You should see errors on the order of e-8 or less.
+--- Cell 11 (Markdown) ---
+# Vanilla RNN: Step Backward
+Since we implemented `rnn_step_forward` with pytorch, we do NOT have to implement `rnn_step_backward`. We can verify pytorch autograd backward
+pass using our numerical gradient checker.
+
+However, if you are feeling adventurous, you can try to implement `rnn_step_backward` yourself. It is not required in this assignment though.
+--- Cell 12 (Code Comments) ---
+# Create test inputs
+# Enable gradient tracking and do rnn forward pass
+# Simulate random upstream gradients and do a backward pass using pytorch's
+# autograd.
+# Collect gradient in separate numpy arrays
+# Also convert test inputs to numpy arrays
+# Wrap our forward pass to support numpy array input and output. We use
+# `torch.no_grad()` to explicitly disable gradient tracking.
+# Compute numerical gradients and compare.
+# You should see errors on the order of 1e-9 or less
+--- Cell 13 (Markdown) ---
+# Vanilla RNN: Forward
+Now that you have implemented the forward for a single timestep of a vanilla RNN, you will use it to implement a RNN that processes an entire sequence of data.
+
+In the file `cs231n/rnn_layers_pytorch.py`, implement the function `rnn_forward`. This should be implemented using the `rnn_step_forward` function that you defined above. After doing so run the following to check your implementation. You should see errors on the order of `e-7` or less.
+--- Cell 15 (Markdown) ---
+# Vanilla RNN: Backward
+As before, we can verify pytorch autograd backward pass using our numerical gradient checker. You can also you can try to implement `rnn_step_backward` yourself if you want. It is not required in this assignment though.
+
+
+--- Cell 16 (Code Comments) ---
+# Create test inputs
+# Enable gradient tracking and do forward pass
+# Simulate random upstream gradients and do a backward pass using pytorch's
+# autograd.
+# Collect gradient in separate numpy arrays
+# Also convert test inputs to numpy arrays
+# Wrap our forward pass to support numpy array input and output. We use
+# `torch.no_grad()` to explicitly disable gradient tracking.
+# You should see errors on the order of 1e-6 or less
+--- Cell 17 (Markdown) ---
+# Word Embedding: Forward
+In deep learning systems, we commonly represent words using vectors. Each word of the vocabulary will be associated with a vector, and these vectors will be learned jointly with the rest of the system.
+
+In the file `cs231n/rnn_layers_pytorch.py`, implement the function `word_embedding_forward` to convert words (represented by integers) into vectors. Run the following to check your implementation. You should see an error on the order of `e-8` or less.
+--- Cell 19 (Markdown) ---
+# Word Embedding: Backward
+As before, we can verify pytorch autograd backward pass using our numerical gradient checker. You can also you can try to implement `word_embedding_backward` yourself if you want. It is not required in this assignment though.
+--- Cell 20 (Code Comments) ---
+# You should see an error on the order of 1e-11 or less
+--- Cell 21 (Markdown) ---
+# Temporal Affine Layer
+At every timestep we use an affine function to transform the RNN hidden vector at that timestep into scores for each word in the vocabulary. Because this is very similar to the affine layer that you implemented in assignment 1, we have provided this function for you in the `temporal_affine_forward`. Run the following to perform numeric gradient checking on the implementation. You should see errors on the order of `e-9` or less.
+--- Cell 22 (Code Comments) ---
+# Gradient check for temporal affine layer
+--- Cell 23 (Markdown) ---
+# Temporal Softmax Loss
+In an RNN language model, at every timestep we produce a score for each word in the vocabulary. We know the ground-truth word at each timestep, so we use a softmax loss function to compute loss and gradient at each timestep. We sum the losses over time and average them over the minibatch.
+
+However there is one wrinkle: since we operate over minibatches and different captions may have different lengths, we append `<NULL>` tokens to the end of each caption so they all have the same length. We don't want these `<NULL>` tokens to count toward the loss or gradient, so in addition to scores and ground-truth labels our loss function also accepts a `mask` array that tells it which elements of the scores count towards the loss.
+
+Since this is very similar to the softmax loss function you implemented in assignment 1, we have implemented this loss function for you; look at the `temporal_softmax_loss` function in the file `cs231n/rnn_layers_pytorch.py`.
+
+Run the following cell to sanity check the loss and perform numeric gradient checking on the function. You should see an error for dx on the order of `e-7` or less.
+--- Cell 24 (Code Comments) ---
+# Sanity check for temporal softmax loss
+# Gradient check for temporal softmax loss
+--- Cell 25 (Markdown) ---
+# RNN for Image Captioning
+Now that you have implemented the necessary layers, you can combine them to build an image captioning model. Open the file `cs231n/classifiers/rnn_pytorch.py` and look at the `CaptioningRNN` class.
+
+Implement the forward pass of the model in the `loss` function. For now you only need to implement the case where `cell_type='rnn'` for vanilla RNNs; you will implement the LSTM case later. After doing so, run the following to check your forward pass using a small test case; you should see error on the order of `e-10` or less.
+--- Cell 26 (Code Comments) ---
+# Set all model parameters to fixed values
+--- Cell 27 (Markdown) ---
+Run the following cell to perform numeric gradient checking on the `CaptioningRNN` class; you should see errors around the order of `e-6` or less.
+--- Cell 29 (Markdown) ---
+# Overfit RNN Captioning Model on Small Data
+Similar to the `Solver` class that we used to train image classification models on the previous assignment, on this assignment we use a `CaptioningSolverPytorch` class to train image captioning models. Open the file `cs231n/captioning_solver_pytorch.py` and read through the `CaptioningSolverPytorch` class; it should look very familiar.
+
+Once you have familiarized yourself with the API, run the following to make sure your model overfits a small sample of 100 training examples. You should see a final loss of less than 0.1.
+--- Cell 30 (Code Comments) ---
+# Plot the training losses.
+--- Cell 31 (Markdown) ---
+Print final training loss. You should see a final loss of less than 0.1.
+--- Cell 33 (Markdown) ---
+# RNN Sampling at Test Time
+Unlike classification models, image captioning models behave very differently at training time vs. at test time. At training time, we have access to the ground-truth caption, so we feed ground-truth words as input to the RNN at each timestep. At test time, we sample from the distribution over the vocabulary at each timestep and feed the sample as input to the RNN at the next timestep.
+
+In the file `cs231n/classifiers/rnn_pytorch.py`, implement the `sample` method for test-time sampling. After doing so, run the following to sample from your overfitted model on both training and validation data. The samples on training data should be very good. The samples on validation data, however, probably won't make sense.
+--- Cell 34 (Code Comments) ---
+# If you get an error, the URL just no longer exists, so don't worry!
+# You can re-sample as many times as you want.
+        # Skip missing URLs.
+--- Cell 35 (Markdown) ---
+# Inline Question 1
+
+In our current image captioning setup, our RNN language model produces a word at every timestep as its output. However, an alternate way to pose the problem is to train the network to operate over _characters_ (e.g. 'a', 'b', etc.) as opposed to words, so that at it every timestep, it receives the previous character as input and tries to predict the next character in the sequence. For example, the network might generate a caption like
+
+'A', ' ', 'c', 'a', 't', ' ', 'o', 'n', ' ', 'a', ' ', 'b', 'e', 'd'
+
+Can you describe one advantage of an image-captioning model that uses a character-level RNN? Can you also describe one disadvantage? HINT: there are several valid answers, but it might be useful to compare the parameter space of word-level and character-level models.
+
+**Your Answer:**
+
